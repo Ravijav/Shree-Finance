@@ -1,0 +1,429 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  
+  
+}
+
+// ─── ENUMS ───────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  AGENT
+  CUSTOMER
+}
+
+enum LoanType {
+  PERSONAL
+  HOME
+  VEHICLE
+  BUSINESS
+  INSURANCE
+}
+
+enum LoanStatus {
+  PENDING
+  ACTIVE
+  CLOSED
+  DEFAULTED
+}
+
+enum PaymentStatus {
+  PENDING
+  PENDING_APPROVAL
+  PAID
+  OVERDUE
+}
+
+enum AgentPaymentType {
+  SALARY
+  COMMISSION
+}
+
+enum EnquiryStatus {
+  NEW
+  CONTACTED
+  RESOLVED
+}
+
+enum TransactionType {
+  LOAN_DISBURSED
+  EMI_SUBMITTED
+  EMI_APPROVED
+  EMI_REVERTED
+  RD_DEPOSIT
+  LOAN_CLOSED
+  RD_ACCOUNT_OPENED
+  RD_PAYMENT_SUBMITTED
+  RD_PAYMENT_APPROVED
+  RD_PAYMENT_REVERTED
+  RD_MATURED
+}
+
+enum TransactionStatus {
+  SUCCESS
+  PENDING
+  REVERTED
+}
+// ─── ENUMS (add these new enums) ─────────────────────────
+
+enum Title {
+  MR
+  MRS
+  MISS
+}
+
+enum Sex {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum Occupation {
+  SERVICE
+  BUSINESS
+  HOUSEWIFE
+  STUDENT
+  RETIRED
+  PROFESSIONAL
+  FARMER
+  OTHER
+}
+
+enum PaymentMode {
+  SINGLE
+  JOINTLY
+  EITHER_SURVIVOR
+  NATURAL_GUARDIAN
+}
+
+enum InterestPayableOn {
+  MATURITY
+  QUARTERLY
+  MONTHLY
+}
+
+enum RDStatus {
+  ACTIVE
+  MATURED
+  CLOSED
+  PREMATURE
+}
+
+enum RDDeductionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ─── USER ────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  phone         String    @unique
+  password      String
+  role          Role      @default(CUSTOMER)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  agentProfile  Agent?
+  customerProfile Customer?
+
+  @@map("users")
+}
+
+// ─── AGENT ───────────────────────────────────────────────
+
+model Agent {
+  id              String           @id @default(cuid())
+  userId          String           @unique
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employeeCode    String           @unique
+  paymentType     AgentPaymentType @default(SALARY)
+  salaryAmount    Float?
+  commissionRate  Float?           // percentage e.g. 2.5 = 2.5%
+  joinedAt        DateTime         @default(now())
+  isActive        Boolean          @default(true)
+  passwordLogs  AgentPasswordLog[]
+
+  // Relations
+  customers       Customer[]
+  loans           Loan[]
+  transactions    Transaction[]
+  rdAccounts    StandaloneRDAccount[]
+
+  @@map("agents")
+}
+
+model AgentPasswordLog {
+  id          String   @id @default(cuid())
+  agentId     String
+  agent       Agent    @relation(fields: [agentId], references: [id])
+  changedAt   DateTime @default(now())
+  seenByAdmin Boolean  @default(false)
+
+  @@map("agent_password_logs")
+}
+
+// ─── CUSTOMER (updated) ───────────────────────────────────
+
+model Customer {
+  id                  String             @id @default(cuid())
+  userId              String             @unique
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agentId             String
+  agent               Agent              @relation(fields: [agentId], references: [id])
+  customerCode        String             @unique
+
+  // Personal Details
+  title               Title?
+  fatherSpouseName    String?
+  dateOfBirth         DateTime?
+  sex                 Sex?
+  address             String?
+  city                String?
+  pinCode             String?
+  occupation          Occupation?
+
+  // KYC
+  aadharNumber        String?            @unique
+  panNumber           String?            @unique
+
+  // Nominee Details
+  nomineeName         String?
+  nomineeRelationship String?
+  nomineeAge          Int?
+  nomineeDOB          DateTime?
+  nomineePAN          String?
+  nomineeAadhar       String?
+  nomineeContact      String?
+  nomineeAddress      String?
+
+  // Payment Settings
+  paymentMode         PaymentMode?
+  interestPayableOn   InterestPayableOn?
+
+  // Introducer Details
+  introducerName      String?
+  introducerCode      String?
+  introducerAddress   String?
+
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  // Relations
+  loans               Loan[]
+  rdAccounts          StandaloneRDAccount[]
+  transactions        Transaction[]
+
+  @@map("customers")
+}
+
+// ─── LOAN ────────────────────────────────────────────────
+
+model Loan {
+  id                String      @id @default(cuid())
+  loanCode          String      @unique
+  customerId        String
+  customer          Customer    @relation(fields: [customerId], references: [id])
+  agentId           String
+  agent             Agent       @relation(fields: [agentId], references: [id])
+  loanType          LoanType
+  principalAmount   Float
+  interestRate      Float
+  interestAmount    Float       @default(0)    // ← total interest on this loan
+  tenureDays        Int
+  totalDays         Int
+  dailyInstallment  Float
+  totalAmount       Float       // principal + interest
+  outstandingAmount Float
+  collectedAmount   Float       @default(0)  // ← total collected so far
+  paidDays          Int         @default(0)
+  principalPerDay     Float     @default(0)  // principal collected per day
+  interestPerDay      Float     @default(0)  // interest collected per day
+  principalCollected  Float     @default(0)  // running total principal collected
+  interestCollected   Float     @default(0)  // running total interest collected
+  disbursedAt       DateTime?
+  closedAt          DateTime?
+  status            LoanStatus  @default(PENDING)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  emiPayments       EMIPayment[]
+  transactions      Transaction[]
+  rdDeductions  RDDeduction[]
+
+  @@map("loans")
+}
+
+// ─── EMI PAYMENT ─────────────────────────────────────────
+
+model EMIPayment {
+  id                  String        @id @default(cuid())
+  loanId              String
+  loan                Loan          @relation(fields: [loanId], references: [id])
+  dayNumber           Int
+  dueDate             DateTime
+  paidDate            DateTime?
+  installmentAmount   Float
+  status              PaymentStatus @default(PENDING)
+  paidByAgentId       String?
+  remarks             String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+   rdDeductions    RDDeduction[]
+
+  @@map("emi_payments")
+}
+
+model Transaction {
+  id                String            @id @default(cuid())
+  transactionCode   String            @unique
+  type              TransactionType
+  status            TransactionStatus @default(SUCCESS)
+  amount            Float
+
+  // Who is involved
+  customerId        String
+  customer          Customer          @relation(fields: [customerId], references: [id])
+  agentId           String
+  agent             Agent             @relation(fields: [agentId], references: [id])
+
+  // What is involved — one of these will be set
+  loanId            String?           // optional now
+  loan              Loan?             @relation(fields: [loanId], references: [id])
+  rdAccountId       String?           // new — for RD transactions
+  rdAccount         StandaloneRDAccount? @relation(fields: [rdAccountId], references: [id])
+
+  outstandingBefore Float             @default(0)
+  outstandingAfter  Float             @default(0)
+  remarks           String?
+  createdAt         DateTime          @default(now())
+
+  @@map("transactions")
+}
+
+
+// ─── STANDALONE RD ACCOUNT ───────────────────────────────
+
+model StandaloneRDAccount {
+  id                  String             @id @default(cuid())
+  accountNumber       String             @unique
+  customerId          String
+  customer            Customer           @relation(fields: [customerId], references: [id])
+  agentId             String
+  agent               Agent              @relation(fields: [agentId], references: [id])
+
+  // Plan Details
+  planYears           Int                // 1, 2, 3, 4, 5
+  interestRate        Float              // auto set based on plan
+  interestPayableOn   InterestPayableOn  @default(MATURITY)
+
+  // Amounts
+  monthlyDeposit      Float              // fixed monthly amount
+  openingDeposit      Float              @default(0)
+  totalDeposited      Float              @default(0)
+  totalMonths         Int                // planYears * 12
+  paidMonths          Int                @default(0)
+
+  // Calculated at creation
+  totalPrincipal      Float              // monthlyDeposit * totalMonths
+  interestAmount      Float              // total interest earned
+  maturityAmount      Float              // totalPrincipal + interestAmount
+
+  // Per period interest (if monthly or quarterly payout)
+  monthlyInterest     Float              @default(0)
+  quarterlyInterest   Float              @default(0)
+
+  // Dates
+  openedAt            DateTime           @default(now())
+  maturityDate        DateTime
+
+  // Status
+  status              RDStatus           @default(ACTIVE)
+
+  // Relations
+  payments            RDPayment[]
+  deductions          RDDeduction[]
+  transactions      Transaction[] 
+
+  @@map("standalone_rd_accounts")
+}
+
+// ─── RD PAYMENT ──────────────────────────────────────────
+
+model RDPayment {
+  id              String             @id @default(cuid())
+  rdAccountId     String
+  rdAccount       StandaloneRDAccount @relation(fields: [rdAccountId], references: [id])
+  monthNumber     Int                // 1, 2, 3 ... totalMonths
+  dueDate         DateTime
+  paidDate        DateTime?
+  amount          Float
+  status          PaymentStatus      @default(PENDING)
+  paidByAgentId   String?
+  remarks         String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@map("rd_payments")
+}
+
+// ─── RD DEDUCTION ────────────────────────────────────────
+
+model RDDeduction {
+  id                  String             @id @default(cuid())
+  rdAccountId         String
+  rdAccount           StandaloneRDAccount @relation(fields: [rdAccountId], references: [id])
+  loanId              String
+  loan                Loan               @relation(fields: [loanId], references: [id])
+  emiPaymentId        String
+  emiPayment          EMIPayment         @relation(fields: [emiPaymentId], references: [id])  // ← add this
+  amount              Float
+  status              RDDeductionStatus  @default(PENDING)
+  requestedByAgentId  String
+  approvedByAdminId   String?
+  reason              String
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@map("rd_deductions")
+}
+
+// ─── ENQUIRY ─────────────────────────────────────────────
+
+model Enquiry {
+  id          String        @id @default(cuid())
+  name        String
+  phone       String
+  email       String?
+  loanType    LoanType?
+  message     String
+  status      EnquiryStatus @default(NEW)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("enquiries")
+}
+
+// ─── AUDIT LOG ───────────────────────────────────────────
+
+model AuditLog {
+  id          String    @id @default(cuid())
+  userId      String
+  action      String    // e.g. "EMI_PAID", "LOAN_CREATED", "AGENT_ADDED"
+  entity      String    // e.g. "Loan", "Customer", "Agent"
+  entityId    String
+  details     Json?
+  createdAt   DateTime  @default(now())
+
+  @@map("audit_logs")
+}
