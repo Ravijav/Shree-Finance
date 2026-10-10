@@ -308,7 +308,8 @@ export async function POST(req: Request) {
     const hashedPassword = await bcrypt.hash(randomPassword, 12);
 
     // Await the customer code
-    const customerCode = await generateCustomerCode(prisma);
+    const customerCount = await prisma.customer.count();
+const customerCode = generateCustomerCode(customerCount);
 
     const customer = await prisma.user.create({
       data: {
