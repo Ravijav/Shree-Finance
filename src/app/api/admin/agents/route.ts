@@ -71,7 +71,8 @@ export async function POST(req: Request) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
-    const employeeCode = generateEmployeeCode();
+    const agentCount = await prisma.agent.count();
+    const employeeCode = generateEmployeeCode(agentCount);
 
     const agent = await prisma.user.create({
       data: {

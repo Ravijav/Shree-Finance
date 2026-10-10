@@ -32,20 +32,12 @@ export function generateLoanCode(): string {
   return `LN${timestamp}${random}`;
 }
 
-// export function generateCustomerCode(): string {
-//   const timestamp = Date.now().toString().slice(-6);
-//   const random = Math.floor(Math.random() * 1000)
-//     .toString()
-//     .padStart(3, "0");
-//   return `CUST${timestamp}${random}`;
-// }
 
-export async function generateCustomerCode(prisma: PrismaClient): Promise<string> {
-  const count = await prisma.customer.count();
+
+export function generateCustomerCode(count: number): string {
   const number = (count + 1).toString().padStart(2, "0");
   return `SREECUST${number}`;
 }
-
 // export function generateEmployeeCode(): string {
 //   const timestamp = Date.now().toString().slice(-4);
 //   const random = Math.floor(Math.random() * 100)
@@ -54,12 +46,15 @@ export async function generateCustomerCode(prisma: PrismaClient): Promise<string
 //   return `EMP${timestamp}${random}`;
 // }
 
-export async function generateEmployeeCode(prisma: PrismaClient): Promise<string> {
-  const count = await prisma.agent.count();
+// export async function generateEmployeeCode(prisma: PrismaClient): Promise<string> {
+//   const count = await prisma.agent.count();
+//   const number = (count + 1).toString().padStart(2, "0");
+//   return `SREEAGENT${number}`;
+// }
+export function generateEmployeeCode(count: number): string {
   const number = (count + 1).toString().padStart(2, "0");
   return `SREEAGENT${number}`;
 }
-
 
 // export function generateRDAccountNumber(): string {
 //   const timestamp = Date.now().toString().slice(-8);
